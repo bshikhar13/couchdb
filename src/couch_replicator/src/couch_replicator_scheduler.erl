@@ -39,7 +39,8 @@
    job_summary/2,
    health_threshold/0,
    jobs/0,
-   job/1
+   job/1,
+   restart_job/1
 ]).
 
 %% config_listener callbacks
@@ -192,6 +193,19 @@ find_jobs_by_doc(DbName, DocId) ->
     [RepId || [RepId] <- ets:match(?MODULE, MatchSpec)].
 
 
+-spec restart_job(binary() | list() | rep_id()) ->
+    {ok, {[_]}} | {error, not_found}.
+restart_job(JobId) ->
+    case rep_state(JobId) of
+        nil ->
+            {error, not_found};
+        #rep{} = Rep ->
+            ok = remove_job(JobId),
+            ok = add_job(Rep),
+            job(JobId)
+    end.
+
+
 %% gen_server functions
 
 init(_) ->
@@ -258,7 +272,8 @@ handle_cast({set_interval, Interval}, State) when is_integer(Interval),
     couch_log:notice("~p: interval set to ~B", [?MODULE, Interval]),
     {noreply, State#state{interval = Interval}};
 
-handle_cast(_, State) ->
+handle_cast(UnexpectedMsg, State) ->
+    couch_log:error("~p: received un-expected cast ~p", [?MODULE, UnexpectedMsg]),
     {noreply, State}.
 
 
